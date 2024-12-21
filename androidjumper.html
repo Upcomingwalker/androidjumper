@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Android Runner</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #2196F3;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+            touch-action: none; /* Prevents default touch behaviors */
+        }
+        
+        #gameContainer {
+            position: relative;
+            width: 800px;
+            height: 300px;
+            background: linear-gradient(to bottom, #87CEEB, #4FC3F7);
+            overflow: hidden;
+            cursor: pointer; /* Shows pointer cursor to indicate clickable area */
+        }
+        
+        #controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-size: 14px;
+            text-shadow: 1px 1px 0 #000;
+            z-index: 110;
+        }
+        
+        #android {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            bottom: 50px;
+            left: 50px;
+            z-index: 100;
+            transition: transform 0.1s;
+        }
+        
+        .obstacle {
+            position: absolute;
+            bottom: 50px;
+            width: 30px;
+            height: 60px;
+            background: #FF4444;
+            border: 2px solid #CC0000;
+            border-radius: 5px;
+            z-index: 90;
+        }
+        
+        #ground {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 50px;
+            background: linear-gradient(to bottom, #8D6E63, #4E342E);
+            z-index: 80;
+        }
+        
+        #score {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 2px 2px 0 #000;
+            z-index: 110;
+        }
+        
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            color: white;
+            font-size: 24px;
+            display: none;
+            text-align: center;
+            z-index: 120;
+        }
+        
+        #credits {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            color: white;
+            font-size: 14px;
+            text-shadow: 1px 1px 0 #000;
+            z-index: 110;
+        }
+        
+        button {
+            background: #4CAF50;
+            border: none;
+            padding: 10px 20px;
+            font-size: 18px;
+            color: white;
+            border-radius: 5px;
+            margin-top: 20px;
+            cursor: pointer;
+        }
+        
+        button:hover {
+            background: #388E3C;
+        }
+        
+        #clouds {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100px;
+            z-index: 70;
+        }
+        
+        .cloud {
+            position: absolute;
+            background: white;
+            border-radius: 20px;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="controls">Space / Click / Touch to Jump</div>
+        <div id="score">0</div>
+        <div id="credits">Created by Tanuj Sharma</div>
+        <div id="clouds"></div>
+        <svg id="android" viewBox="0 0 24 24">
+            <path fill="#3DDC84" d="M17.6,11.48 L19.44,8.3 a0.63,0.63 0 0,0 -1.09,-0.63 l-1.88,3.24 a11.43,11.43 0 0,0 -8.94,0 L5.65,7.67 a0.63,0.63 0 0,0 -1.09,0.63 L6.4,11.48 A10.81,10.81 0 0,0 1,20 L23,20 A10.81,10.81 0 0,0 17.6,11.48 ZM7,17.25 A1.25,1.25 0 0,1 5.75,16 A1.25,1.25 0 0,1 7,14.75 A1.25,1.25 0 0,1 8.25,16 A1.25,1.25 0 0,1 7,17.25 ZM17,17.25 A1.25,1.25 0 0,1 15.75,16 A1.25,1.25 0 0,1 17,14.75 A1.25,1.25 0 0,1 18.25,16 A1.25,1.25 0 0,1 17,17.25 Z"/>
+        </svg>
+        <div id="ground"></div>
+        <div id="gameOver">
+            Game Over!<br>
+            Score: <span id="finalScore">0</span><br>
+            <button onclick="startGame()">Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        const gameContainer = document.getElementById('gameContainer');
+        const android = document.getElementById('android');
+        const scoreElement = document.getElementById('score');
+        const gameOverScreen = document.getElementById('gameOver');
+        const finalScoreElement = document.getElementById('finalScore');
+        const cloudsContainer = document.getElementById('clouds');
+
+        let isJumping = false;
+        let gravity = 0.6;
+        let position = 0;
+        let isGameOver = false;
+        let score = 0;
+        let gameSpeed = 5;
+        let obstacles = [];
+        let clouds = [];
+        let lastObstacleTime = 0;
+        const minObstacleInterval = 1500;
+
+        function createCloud() {
+            const cloud = document.createElement('div');
+            cloud.className = 'cloud';
+            cloud.style.left = '800px';
+            cloud.style.top = Math.random() * 50 + 'px';
+            cloud.style.width = Math.random() * 60 + 40 + 'px';
+            cloud.style.height = Math.random() * 20 + 20 + 'px';
+            cloudsContainer.appendChild(cloud);
+            clouds.push({
+                element: cloud,
+                speed: Math.random() * 2 + 1
+            });
+        }
+
+        function moveCloud(cloud) {
+            const currentLeft = parseFloat(cloud.element.style.left);
+            if (currentLeft <= -100) {
+                cloud.element.remove();
+                return false;
+            }
+            cloud.element.style.left = (currentLeft - cloud.speed) + 'px';
+            return true;
+        }
+
+        function createObstacle() {
+            const currentTime = Date.now();
+            if (currentTime - lastObstacleTime < minObstacleInterval) {
+                return;
+            }
+            
+            const obstacle = document.createElement('div');
+            obstacle.className = 'obstacle';
+            obstacle.style.left = '800px';
+            obstacle.style.height = Math.random() * 20 + 40 + 'px';
+            gameContainer.appendChild(obstacle);
+            obstacles.push(obstacle);
+            lastObstacleTime = currentTime;
+        }
+
+        function moveObstacles() {
+            obstacles = obstacles.filter(obstacle => {
+                const currentLeft = parseFloat(obstacle.style.left);
+                if (currentLeft <= -30) {
+                    obstacle.remove();
+                    return false;
+                }
+                obstacle.style.left = (currentLeft - gameSpeed) + 'px';
+                return true;
+            });
+        }
+
+        function checkCollision(obstacle) {
+            const androidRect = android.getBoundingClientRect();
+            const obstacleRect = obstacle.getBoundingClientRect();
+
+            return !(androidRect.bottom < obstacleRect.top || 
+                    androidRect.top > obstacleRect.bottom || 
+                    androidRect.right < obstacleRect.left || 
+                    androidRect.left > obstacleRect.right);
+        }
+
+        function jump() {
+            if (!isJumping && position === 0 && !isGameOver) {
+                isJumping = true;
+                let upTime = 12;
+                let jumpStrength = 15;
+                let timerId = setInterval(() => {
+                    if (upTime > 0) {
+                        position += jumpStrength;
+                        upTime--;
+                        jumpStrength *= 0.9;
+                    }
+                    if (upTime === 0) {
+                        if (position > 0) {
+                            position -= gravity;
+                            gravity += 0.2;
+                        } else {
+                            position = 0;
+                            isJumping = false;
+                            gravity = 0.6;
+                            clearInterval(timerId);
+                        }
+                    }
+                    android.style.bottom = (50 + position) + 'px';
+                    const rotation = position > 0 ? -15 : 0;
+                    android.style.transform = `rotate(${rotation}deg)`;
+                }, 20);
+            }
+        }
+
+        function updateGame() {
+            if (!isGameOver) {
+                moveObstacles();
+                
+                clouds = clouds.filter(cloud => moveCloud(cloud));
+                if (Math.random() < 0.02) {
+                    createCloud();
+                }
+
+                obstacles.forEach(obstacle => {
+                    if (checkCollision(obstacle)) {
+                        gameOver();
+                    }
+                });
+
+                if (Math.random() < 0.02) {
+                    createObstacle();
+                }
+
+                score++;
+                scoreElement.textContent = Math.floor(score / 10);
+
+                if (score % 500 === 0) {
+                    gameSpeed += 0.5;
+                }
+
+                requestAnimationFrame(updateGame);
+            }
+        }
+
+        function gameOver() {
+            isGameOver = true;
+            finalScoreElement.textContent = Math.floor(score / 10);
+            gameOverScreen.style.display = 'block';
+        }
+
+        function startGame() {
+            isGameOver = false;
+            score = 0;
+            gameSpeed = 5;
+            position = 0;
+            gravity = 0.6;
+            lastObstacleTime = 0;
+            android.style.bottom = '50px';
+            android.style.transform = 'rotate(0deg)';
+            gameOverScreen.style.display = 'none';
+            scoreElement.textContent = '0';
+
+            obstacles.forEach(obstacle => obstacle.remove());
+            obstacles = [];
+            clouds.forEach(cloud => cloud.element.remove());
+            clouds = [];
+
+            updateGame();
+        }
+
+        // Event Listeners for all control methods
+        document.addEventListener('keydown', event => {
+            if (event.code === 'Space') {
+                event.preventDefault();
+                jump();
+            }
+        });
+
+        // Mouse click control
+        gameContainer.addEventListener('click', (event) => {
+            event.preventDefault();
+            jump();
+        });
+
+        // Touch control
+        gameContainer.addEventListener('touchstart', (event) => {
+            event.preventDefault();
+            jump();
+        });
+
+        startGame();
+    </script>
+</body>
+</html>
